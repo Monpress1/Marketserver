@@ -116,7 +116,8 @@ const demoProducts = [
         name: "Android Tablet (10-inch)", description: "Lightly used 10-inch Android tablet...",
         price: 60000, category: "Phones & Tablets", condition: "Used - Good", negotiable: true,
         location: "Enugu", paymentOption: "Full Payment", sellerWhatsApp: "2349022334455",
-        imageUrl: "/uploads/tablet.jpg", timestamp: Date.Now() - 86400000 * 2.5, sellerId: "user_demo_2"
+        // FIX: Changed Date.Now() to Date.now()
+        imageUrl: "/uploads/tablet.jpg", timestamp: Date.now() - 86400000 * 2.5, sellerId: "user_demo_2"
     }
 ];
 
@@ -346,7 +347,7 @@ function updateProductInDb(id, name, description, price, category, condition, ne
             } else {
                 console.warn(`Attempted to update product ${id}, but it was not found.`);
             }
-        }
+        >   }
     );
 }
 
