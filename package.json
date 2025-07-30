@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "A real-time marketplace application with product listings and image uploads, using Node.js, SQLite, and WebSockets.",
   "main": "server.js",
-  "type": "module",  <-- THIS IS CRUCIAL
+  "type": "module",  
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
@@ -21,10 +21,10 @@
   "author": "Your Name or Company (e.g., Your Dev Team)",
   "license": "ISC",
   "dependencies": {
-    "sqlite3": "^5.1.7",  <-- Driver for sqlite
+    "sqlite3": "^5.1.7",  
     "ws": "^8.18.3",
-    "sqlite": "^5.1.0",   <-- Package for async/await DB operations
-    "uuid": "^9.0.1"      <-- Added for generating unique IDs (if your frontend doesn't)
+    "sqlite": "^5.1.0",   
+    "uuid": "^9.0.1"       
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
