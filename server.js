@@ -342,15 +342,3 @@ function updateProductInDb(id, name, description, price, category, condition, ne
                     if (client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({ type: 'PRODUCT_UPDATED', product: updatedProduct }));
                     }
-                });
-            } else {
-                console.warn(`Attempted to update product ${id}, but it was not found.`);
-            }
-        }
-    );
-}
-
-// Start the HTTP server
-httpServer.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
