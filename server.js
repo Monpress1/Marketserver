@@ -56,19 +56,19 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
     }
 });
 
-// Seed Demo Products (update imageUrl to point to /uploads/ paths)
+// Seed Demo Products (imageUrl points to /uploads/ paths, timestamp set to Date.now())
 const demoProducts = [
     {
         name: "Premium Leather Handbag", description: "Crafted from genuine Italian leather...",
         price: 75000, category: "Fashion & Accessories", condition: "New", negotiable: true,
         location: "Lagos", paymentOption: "Full Payment", sellerWhatsApp: "2348012345678",
-        imageUrl: "/uploads/handbag.jpg", timestamp: Date.now() - 86400000 * 2, sellerId: "user_demo_1"
+        imageUrl: "/uploads/handbag.jpg", timestamp: Date.now(), sellerId: "user_demo_1"
     },
     {
         name: "Smart Fitness Watch Pro", description: "Track your health and fitness...",
         price: 45000, category: "Electronics & Gadgets", condition: "Used - Like New", negotiable: false,
         location: "Abuja", paymentOption: "Full Payment", sellerWhatsApp: "2349098765432",
-        imageUrl: "/uploads/watch.jpg", timestamp: Date.now() - 86400000, sellerId: "user_demo_2"
+        imageUrl: "/uploads/watch.jpg", timestamp: Date.now(), sellerId: "user_demo_2"
     },
     {
         name: "Organic Arabica Coffee Beans (1kg)", description: "Ethically sourced, freshly roasted...",
@@ -80,43 +80,43 @@ const demoProducts = [
         name: "Vintage Decorative Camera", description: "A beautifully preserved vintage wooden camera...",
         price: 98000, category: "Collectibles", condition: "Used - Good", negotiable: true,
         location: "Ibadan", paymentOption: "Full Payment", sellerWhatsApp: "2348055667788",
-        imageUrl: "/uploads/camera.jpg", timestamp: Date.now() - 86400000 * 3, sellerId: "user_demo_3" // CORRECTED: Was Date.247now()
+        imageUrl: "/uploads/camera.jpg", timestamp: Date.now(), sellerId: "user_demo_3"
     },
     {
         name: "Unisex Ray-Ban Sunglasses", description: "Original Ray-Ban Wayfarer sunglasses...",
         price: 32000, category: "Fashion & Accessories", condition: "Used - Excellent", negotiable: true,
         location: "Enugu", paymentOption: "Full Payment", sellerWhatsApp: "2347067890123",
-        imageUrl: "/uploads/sunglasses.jpg", timestamp: Date.now() - 86400000 * 0.5, sellerId: "user_demo_1"
+        imageUrl: "/uploads/sunglasses.jpg", timestamp: Date.now(), sellerId: "user_demo_1"
     },
     {
         name: "Gaming Laptop (RTX 4070)", description: "High-performance gaming laptop with NVIDIA RTX 4070 GPU...",
         price: 1200000, category: "Electronics & Gadgets", condition: "Used - Very Good", negotiable: false,
         location: "Lagos", paymentOption: "Full Payment", sellerWhatsApp: "2348123456789",
-        imageUrl: "/uploads/laptop.jpg", timestamp: Date.now() - 86400000 * 5, sellerId: "user_demo_2"
+        imageUrl: "/uploads/laptop.jpg", timestamp: Date.now(), sellerId: "user_demo_2"
     },
     {
         name: "Fresh Tomatoes (Basket)", description: "A full basket of fresh, ripe, organic tomatoes...",
         price: 8000, category: "Foodstuff", condition: "New", negotiable: true,
         location: "Kano", paymentOption: "Full Payment", sellerWhatsApp: "2349011223344",
-        imageUrl: "/uploads/tomatoes.jpg", timestamp: Date.now() - 86400000 * 0.2, sellerId: "user_demo_1"
+        imageUrl: "/uploads/tomatoes.jpg", timestamp: Date.now(), sellerId: "user_demo_1"
     },
     {
         name: "Elegant Pearl Earrings", description: "Handcrafted freshwater pearl earrings with sterling silver settings...",
         price: 15000, category: "Fashion & Accessories", condition: "New", negotiable: false,
         location: "Benin City", paymentOption: "Full Payment", sellerWhatsApp: "2348033445566",
-        imageUrl: "/uploads/earrings.jpg", timestamp: Date.now() - 86400000 * 1, sellerId: "user_demo_4"
+        imageUrl: "/uploads/earrings.jpg", timestamp: Date.now(), sellerId: "user_demo_4"
     },
     {
         name: "iPhone 15 Pro Max (256GB)", description: "Latest iPhone 15 Pro Max, 256GB, Pacific Blue...",
         price: 1150000, category: "Phones & Tablets", condition: "Used - Pristine", negotiable: false,
         location: "Lagos", paymentOption: "Down Payment Accepted", sellerWhatsApp: "2348077889900",
-        imageUrl: "/uploads/iphone.jpg", timestamp: Date.now() - 86400000 * 0.7, sellerId: "user_demo_1"
+        imageUrl: "/uploads/iphone.jpg", timestamp: Date.now(), sellerId: "user_demo_1"
     },
     {
         name: "Android Tablet (10-inch)", description: "Lightly used 10-inch Android tablet...",
         price: 60000, category: "Phones & Tablets", condition: "Used - Good", negotiable: true,
         location: "Enugu", paymentOption: "Full Payment", sellerWhatsApp: "2349022334455",
-        imageUrl: "/uploads/tablet.jpg", timestamp: Date.now() - 86400000 * 2.5, sellerId: "user_demo_2"
+        imageUrl: "/uploads/tablet.jpg", timestamp: Date.now(), sellerId: "user_demo_2"
     }
 ];
 
@@ -212,7 +212,7 @@ wss.on('connection', ws => {
 
             if (data.type === 'ADD_PRODUCT') {
                 const { name, description, price, category, condition, negotiable, location, paymentOption, sellerWhatsApp, imageUrl, sellerId } = data.product;
-                const timestamp = Date.now();
+                const timestamp = Date.now(); // Always use current time for new products
 
                 let savedImageUrl = imageUrl;
                 if (imageUrl && imageUrl.startsWith('data:image/')) {
@@ -237,7 +237,7 @@ wss.on('connection', ws => {
 
             } else if (data.type === 'UPDATE_PRODUCT') {
                 const { id, name, description, price, category, condition, negotiable, location, paymentOption, sellerWhatsApp, imageUrl } = data.product;
-                const updateTimestamp = Date.now();
+                const updateTimestamp = Date.now(); // Update timestamp on product modification
 
                 let updatedImageUrl = imageUrl;
                 if (imageUrl && imageUrl.startsWith('data:image/')) {
