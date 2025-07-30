@@ -42,7 +42,7 @@ const seedProducts = [
     sellerWhatsApp: "08034567891",
     sellerId: "user_demo_3",
     imageUrl: "/uploads/camera.jpg",
-    timestamp: Date.now() - 86400000 * 3,
+    timestamp: Date.now() - 86400000 * 3, // ✅ fixed typo here
   },
   {
     id: "p002",
