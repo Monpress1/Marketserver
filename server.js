@@ -1,18 +1,22 @@
-const fs = require("fs");
-const path = require("path");
-const sqlite3 = require("sqlite3").verbose();
-const WebSocket = require("ws");
-const http = require("http");
+const WebSocket = require('ws');
+const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
+const path = require('path');
 
-// --- Server & WebSocket Setup ---
-const server = http.createServer();
-const wss = new WebSocket.Server({ server });
+const PORT = process.env.PORT || 3000;
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
 
-// --- SQLite Setup ---
-const db = new sqlite3.Database("./marketplace.db");
+// Ensure uploads folder exists
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR);
+}
 
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS products (
+// Initialize SQLite database
+const db = new sqlite3.Database('./marketplace.db');
+
+// Create products table with full schema
+db.run(`
+  CREATE TABLE IF NOT EXISTS products (
     id TEXT PRIMARY KEY,
     name TEXT,
     category TEXT,
@@ -25,175 +29,108 @@ db.serialize(() => {
     sellerId TEXT,
     imageUrl TEXT,
     timestamp INTEGER
-  )`);
+  )
+`);
+
+const wss = new WebSocket.Server({ port: PORT }, () => {
+  console.log(`WebSocket server running on ws://localhost:${PORT}`);
 });
 
-// --- Seed Demo Products (optional) ---
-const seedProducts = [
-  {
-    id: "p001",
-    name: "Nikon Camera",
-    category: "Electronics",
-    price: 180000,
-    condition: "New",
-    negotiable: 1,
-    location: "Abuja",
-    paymentOption: "On Delivery",
-    sellerWhatsApp: "08034567891",
-    sellerId: "user_demo_3",
-    imageUrl: "/uploads/camera.jpg",
-    timestamp: Date.now() - 86400000 * 3, // ✅ fixed typo here
-  },
-  {
-    id: "p002",
-    name: "iPhone X",
-    category: "Phones",
-    price: 150000,
-    condition: "Used",
-    negotiable: 0,
-    location: "Lagos",
-    paymentOption: "Bank Transfer",
-    sellerWhatsApp: "08123456789",
-    sellerId: "user_demo_1",
-    imageUrl: "/uploads/iphonex.jpg",
-    timestamp: Date.now() - 86400000 * 1,
-  },
-];
+const clients = new Set();
 
-seedProducts.forEach((product) => {
-  db.run(
-    `INSERT OR IGNORE INTO products (
-      id, name, category, price, condition, negotiable, location,
-      paymentOption, sellerWhatsApp, sellerId, imageUrl, timestamp
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      product.id,
-      product.name,
-      product.category,
-      product.price,
-      product.condition,
-      product.negotiable,
-      product.location,
-      product.paymentOption,
-      product.sellerWhatsApp,
-      product.sellerId,
-      product.imageUrl,
-      product.timestamp,
-    ]
-  );
-});
+wss.on('connection', (ws) => {
+  clients.add(ws);
+  console.log('Client connected');
 
-// --- WebSocket Handling ---
-wss.on("connection", (ws) => {
-  console.log("Client connected ✅");
-
-  // Send all products on connect
-  db.all("SELECT * FROM products ORDER BY timestamp DESC", [], (err, rows) => {
-    if (!err) {
-      ws.send(JSON.stringify({ type: "all_products", data: rows }));
-    }
-  });
-
-  ws.on("message", (msg) => {
+  ws.on('message', (data) => {
+    let msg;
     try {
-      const parsed = JSON.parse(msg);
+      msg = JSON.parse(data);
+    } catch (err) {
+      console.error('Invalid JSON:', data);
+      return;
+    }
 
-      // --- Add Product ---
-      if (parsed.type === "add_product") {
-        const p = parsed.data;
-        db.run(
-          `INSERT INTO products VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            p.id,
-            p.name,
-            p.category,
-            p.price,
-            p.condition,
-            p.negotiable ? 1 : 0,
-            p.location,
-            p.paymentOption,
-            p.sellerWhatsApp,
-            p.sellerId,
-            p.imageUrl,
-            p.timestamp,
-          ],
-          () => {
-            broadcast({ type: "product_added", data: p });
+    if (msg.type === 'add_product') {
+      const p = msg.data;
+      db.run(
+        `INSERT INTO products (
+          id, name, category, price, condition, negotiable,
+          location, paymentOption, sellerWhatsApp, sellerId,
+          imageUrl, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          p.id, p.name, p.category, p.price, p.condition,
+          p.negotiable ? 1 : 0, p.location, p.paymentOption,
+          p.sellerWhatsApp, p.sellerId, p.imageUrl, p.timestamp
+        ],
+        (err) => {
+          if (err) {
+            console.error('DB insert error:', err.message);
+            return;
           }
-        );
-      }
+          broadcast({ type: 'product_added', data: p });
+        }
+      );
+    }
 
-      // --- Edit/Update Product ---
-      else if (parsed.type === "update_product") {
-        const p = parsed.data;
-        db.run(
-          `UPDATE products SET
-            name = ?, category = ?, price = ?, condition = ?, negotiable = ?,
-            location = ?, paymentOption = ?, sellerWhatsApp = ?, imageUrl = ?, timestamp = ?
-           WHERE id = ?`,
-          [
-            p.name,
-            p.category,
-            p.price,
-            p.condition,
-            p.negotiable ? 1 : 0,
-            p.location,
-            p.paymentOption,
-            p.sellerWhatsApp,
-            p.imageUrl,
-            p.timestamp,
-            p.id,
-          ],
-          () => {
-            broadcast({ type: "product_updated", data: p });
+    else if (msg.type === 'edit_product') {
+      const p = msg.data;
+      db.run(
+        `UPDATE products SET
+          name = ?, category = ?, price = ?, condition = ?, negotiable = ?,
+          location = ?, paymentOption = ?, sellerWhatsApp = ?, sellerId = ?,
+          imageUrl = ?, timestamp = ?
+         WHERE id = ?`,
+        [
+          p.name, p.category, p.price, p.condition, p.negotiable ? 1 : 0,
+          p.location, p.paymentOption, p.sellerWhatsApp, p.sellerId,
+          p.imageUrl, p.timestamp, p.id
+        ],
+        (err) => {
+          if (err) {
+            console.error('DB update error:', err.message);
+            return;
           }
-        );
-      }
+          broadcast({ type: 'product_updated', data: p });
+        }
+      );
+    }
 
-      // --- Delete Product ---
-      else if (parsed.type === "delete_product") {
-        const productId = parsed.data;
-        db.run(`DELETE FROM products WHERE id = ?`, [productId], () => {
-          broadcast({ type: "product_deleted", data: productId });
-        });
-      }
+    else if (msg.type === 'delete_product') {
+      const id = msg.id;
+      db.run(`DELETE FROM products WHERE id = ?`, [id], (err) => {
+        if (err) {
+          console.error('DB delete error:', err.message);
+          return;
+        }
+        broadcast({ type: 'product_deleted', id });
+      });
+    }
 
-      // --- Seller's Products ---
-      else if (parsed.type === "get_my_products") {
-        const sellerId = parsed.data;
-        db.all(
-          `SELECT * FROM products WHERE sellerId = ? ORDER BY timestamp DESC`,
-          [sellerId],
-          (err, rows) => {
-            if (!err) {
-              ws.send(
-                JSON.stringify({ type: "my_products", data: rows })
-              );
-            }
-          }
-        );
-      }
-
-    } catch (e) {
-      console.error("Invalid message", e);
+    else if (msg.type === 'get_products') {
+      db.all(`SELECT * FROM products ORDER BY timestamp DESC`, (err, rows) => {
+        if (err) {
+          console.error('DB read error:', err.message);
+          return;
+        }
+        ws.send(JSON.stringify({ type: 'products_list', data: rows }));
+      });
     }
   });
 
-  ws.on("close", () => console.log("Client disconnected ❌"));
+  ws.on('close', () => {
+    clients.delete(ws);
+    console.log('Client disconnected');
+  });
 });
 
-// --- Broadcast Helper ---
-function broadcast(payload) {
-  const msg = JSON.stringify(payload);
-  wss.clients.forEach((client) => {
+// Helper function to broadcast messages to all clients
+function broadcast(msg) {
+  const json = JSON.stringify(msg);
+  clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(msg);
+      client.send(json);
     }
   });
-}
-
-// --- Start Server ---
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 WebSocket server running on port ${PORT}`);
-});
+        }
