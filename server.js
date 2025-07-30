@@ -347,7 +347,7 @@ function updateProductInDb(id, name, description, price, category, condition, ne
             } else {
                 console.warn(`Attempted to update product ${id}, but it was not found.`);
             }
-        >   }
+          }
     );
 }
 
