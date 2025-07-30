@@ -22,7 +22,7 @@
   "dependencies": {
     "sqlite3": "^5.1.7",
     "ws": "^8.18.3",
-    "sqlite": "^5.1.x" // <--- Also, make sure to install 'sqlite' package!
+    "sqlite": "^5.1.x" 
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
@@ -30,5 +30,5 @@
   "engines": {
     "node": ">=14.0.0"
   },
-  "type": "module" // <--- ADD THIS LINE
+  "type": "module" 
 }
