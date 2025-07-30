@@ -1,124 +1,199 @@
-import { WebSocketServer } from 'ws';
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
+const fs = require("fs");
+const path = require("path");
+const sqlite3 = require("sqlite3").verbose();
+const WebSocket = require("ws");
+const http = require("http");
 
-const wss = new WebSocketServer({ port: 3000 });
-console.log('🟢 WebSocket server running on ws://localhost:3000');
+// --- Server & WebSocket Setup ---
+const server = http.createServer();
+const wss = new WebSocket.Server({ server });
 
-const db = await open({
-  filename: './products.db',
-  driver: sqlite3.Database
-});
+// --- SQLite Setup ---
+const db = new sqlite3.Database("./marketplace.db");
 
-// Initialize the DB with full schema
-await db.exec(`
-  CREATE TABLE IF NOT EXISTS products (
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS products (
     id TEXT PRIMARY KEY,
     name TEXT,
     category TEXT,
-    price REAL,
-    image TEXT,
-    description TEXT,
+    price INTEGER,
     condition TEXT,
     negotiable INTEGER,
     location TEXT,
     paymentOption TEXT,
-    sellerId TEXT,
     sellerWhatsApp TEXT,
-    timestamp TEXT
-  )
-`);
+    sellerId TEXT,
+    imageUrl TEXT,
+    timestamp INTEGER
+  )`);
+});
 
-// Broadcast helper
-function broadcast(type, payload, exclude = null) {
-  for (const client of wss.clients) {
-    if (client.readyState === 1 && client !== exclude) {
-      client.send(JSON.stringify({ type, payload }));
-    }
-  }
-}
+// --- Seed Demo Products (optional) ---
+const seedProducts = [
+  {
+    id: "p001",
+    name: "Nikon Camera",
+    category: "Electronics",
+    price: 180000,
+    condition: "New",
+    negotiable: 1,
+    location: "Abuja",
+    paymentOption: "On Delivery",
+    sellerWhatsApp: "08034567891",
+    sellerId: "user_demo_3",
+    imageUrl: "/uploads/camera.jpg",
+    timestamp: Date.now() - 86400000 * 3,
+  },
+  {
+    id: "p002",
+    name: "iPhone X",
+    category: "Phones",
+    price: 150000,
+    condition: "Used",
+    negotiable: 0,
+    location: "Lagos",
+    paymentOption: "Bank Transfer",
+    sellerWhatsApp: "08123456789",
+    sellerId: "user_demo_1",
+    imageUrl: "/uploads/iphonex.jpg",
+    timestamp: Date.now() - 86400000 * 1,
+  },
+];
 
-wss.on('connection', async (ws) => {
-  console.log('🔌 Client connected');
+seedProducts.forEach((product) => {
+  db.run(
+    `INSERT OR IGNORE INTO products (
+      id, name, category, price, condition, negotiable, location,
+      paymentOption, sellerWhatsApp, sellerId, imageUrl, timestamp
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      product.id,
+      product.name,
+      product.category,
+      product.price,
+      product.condition,
+      product.negotiable,
+      product.location,
+      product.paymentOption,
+      product.sellerWhatsApp,
+      product.sellerId,
+      product.imageUrl,
+      product.timestamp,
+    ]
+  );
+});
 
-  // Send all products on connection
-  const products = await db.all('SELECT * FROM products');
-  ws.send(JSON.stringify({ type: 'initial_data', payload: products }));
+// --- WebSocket Handling ---
+wss.on("connection", (ws) => {
+  console.log("Client connected ✅");
 
-  ws.on('message', async (message) => {
-    try {
-      const { type, payload } = JSON.parse(message);
-
-      switch (type) {
-        case 'add_product': {
-          const {
-            id, name, category, price, image, description,
-            condition, negotiable, location, paymentOption,
-            sellerId, sellerWhatsApp, timestamp
-          } = payload;
-
-          await db.run(`
-            INSERT INTO products (
-              id, name, category, price, image, description,
-              condition, negotiable, location, paymentOption,
-              sellerId, sellerWhatsApp, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `, [
-            id, name, category, price, image, description,
-            condition, negotiable ? 1 : 0, location, paymentOption,
-            sellerId, sellerWhatsApp, timestamp
-          ]);
-
-          broadcast('product_added', payload, ws);
-          break;
-        }
-
-        case 'update_product': {
-          const {
-            id, name, category, price, image, description,
-            condition, negotiable, location, paymentOption,
-            sellerId, sellerWhatsApp, timestamp
-          } = payload;
-
-          await db.run(`
-            UPDATE products SET
-              name = ?, category = ?, price = ?, image = ?, description = ?,
-              condition = ?, negotiable = ?, location = ?, paymentOption = ?,
-              sellerId = ?, sellerWhatsApp = ?, timestamp = ?
-            WHERE id = ?
-          `, [
-            name, category, price, image, description,
-            condition, negotiable ? 1 : 0, location, paymentOption,
-            sellerId, sellerWhatsApp, timestamp, id
-          ]);
-
-          broadcast('product_updated', payload, ws);
-          break;
-        }
-
-        case 'delete_product': {
-          const { id } = payload;
-          await db.run('DELETE FROM products WHERE id = ?', [id]);
-          broadcast('product_deleted', { id }, ws);
-          break;
-        }
-
-        case 'get_my_products': {
-          const { sellerId } = payload;
-          const myProducts = await db.all(
-            'SELECT * FROM products WHERE sellerId = ?',
-            [sellerId]
-          );
-          ws.send(JSON.stringify({ type: 'my_products', payload: myProducts }));
-          break;
-        }
-
-        default:
-          console.warn('⚠ Unknown message type:', type);
-      }
-    } catch (err) {
-      console.error('❌ Message handling error:', err);
-      ws.send(JSON.stringify({ type: 'error', payload: 'Invalid message or server error' }));
+  // Send all products on connect
+  db.all("SELECT * FROM products ORDER BY timestamp DESC", [], (err, rows) => {
+    if (!err) {
+      ws.send(JSON.stringify({ type: "all_products", data: rows }));
     }
   });
+
+  ws.on("message", (msg) => {
+    try {
+      const parsed = JSON.parse(msg);
+
+      // --- Add Product ---
+      if (parsed.type === "add_product") {
+        const p = parsed.data;
+        db.run(
+          `INSERT INTO products VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            p.id,
+            p.name,
+            p.category,
+            p.price,
+            p.condition,
+            p.negotiable ? 1 : 0,
+            p.location,
+            p.paymentOption,
+            p.sellerWhatsApp,
+            p.sellerId,
+            p.imageUrl,
+            p.timestamp,
+          ],
+          () => {
+            broadcast({ type: "product_added", data: p });
+          }
+        );
+      }
+
+      // --- Edit/Update Product ---
+      else if (parsed.type === "update_product") {
+        const p = parsed.data;
+        db.run(
+          `UPDATE products SET
+            name = ?, category = ?, price = ?, condition = ?, negotiable = ?,
+            location = ?, paymentOption = ?, sellerWhatsApp = ?, imageUrl = ?, timestamp = ?
+           WHERE id = ?`,
+          [
+            p.name,
+            p.category,
+            p.price,
+            p.condition,
+            p.negotiable ? 1 : 0,
+            p.location,
+            p.paymentOption,
+            p.sellerWhatsApp,
+            p.imageUrl,
+            p.timestamp,
+            p.id,
+          ],
+          () => {
+            broadcast({ type: "product_updated", data: p });
+          }
+        );
+      }
+
+      // --- Delete Product ---
+      else if (parsed.type === "delete_product") {
+        const productId = parsed.data;
+        db.run(`DELETE FROM products WHERE id = ?`, [productId], () => {
+          broadcast({ type: "product_deleted", data: productId });
+        });
+      }
+
+      // --- Seller's Products ---
+      else if (parsed.type === "get_my_products") {
+        const sellerId = parsed.data;
+        db.all(
+          `SELECT * FROM products WHERE sellerId = ? ORDER BY timestamp DESC`,
+          [sellerId],
+          (err, rows) => {
+            if (!err) {
+              ws.send(
+                JSON.stringify({ type: "my_products", data: rows })
+              );
+            }
+          }
+        );
+      }
+
+    } catch (e) {
+      console.error("Invalid message", e);
+    }
+  });
+
+  ws.on("close", () => console.log("Client disconnected ❌"));
+});
+
+// --- Broadcast Helper ---
+function broadcast(payload) {
+  const msg = JSON.stringify(payload);
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg);
+    }
+  });
+}
+
+// --- Start Server ---
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`🚀 WebSocket server running on port ${PORT}`);
 });
