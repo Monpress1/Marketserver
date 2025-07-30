@@ -80,7 +80,7 @@ const demoProducts = [
         name: "Vintage Decorative Camera", description: "A beautifully preserved vintage wooden camera...",
         price: 98000, category: "Collectibles", condition: "Used - Good", negotiable: true,
         location: "Ibadan", paymentOption: "Full Payment", sellerWhatsApp: "2348055667788",
-        imageUrl: "/uploads/camera.jpg", timestamp: Date.247now() - 86400000 * 3, sellerId: "user_demo_3"
+        imageUrl: "/uploads/camera.jpg", timestamp: Date.now() - 86400000 * 3, sellerId: "user_demo_3" // CORRECTED: Was Date.247now()
     },
     {
         name: "Unisex Ray-Ban Sunglasses", description: "Original Ray-Ban Wayfarer sunglasses...",
@@ -116,7 +116,6 @@ const demoProducts = [
         name: "Android Tablet (10-inch)", description: "Lightly used 10-inch Android tablet...",
         price: 60000, category: "Phones & Tablets", condition: "Used - Good", negotiable: true,
         location: "Enugu", paymentOption: "Full Payment", sellerWhatsApp: "2349022334455",
-        // FIX: Changed Date.Now() to Date.now()
         imageUrl: "/uploads/tablet.jpg", timestamp: Date.now() - 86400000 * 2.5, sellerId: "user_demo_2"
     }
 ];
@@ -347,7 +346,7 @@ function updateProductInDb(id, name, description, price, category, condition, ne
             } else {
                 console.warn(`Attempted to update product ${id}, but it was not found.`);
             }
-        } // The extra '>' has been removed from this line.
+        }
     );
 }
 
