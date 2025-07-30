@@ -1,18 +1,18 @@
-import { WebSocketServer } from 'ws';
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
+// --- CommonJS Imports ---
+const WebSocket = require('ws');
+const sqlite3 = require('sqlite3');
+const { open } = require('sqlite'); // Need to install 'sqlite' package!
+const path = require('path');
+const fs = require('fs');
 
-// Get __dirname equivalent in ES Modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// __dirname and __filename are available by default in CommonJS
+// const __filename = fileURLToPath(import.meta.url); // Not needed
+// const __dirname = path.dirname(__filename); // Not needed
 
 // --- Configuration ---
 const PORT = process.env.PORT || 3000;
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
-const DB_FILE = './marketplace.db'; // Database file name
+const DB_FILE = './marketplace.db';
 
 // --- Ensure uploads folder exists ---
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -36,30 +36,29 @@ let db;
         id TEXT PRIMARY KEY,
         name TEXT,
         category TEXT,
-        price REAL, -- Use REAL for price to allow decimals
+        price REAL,
         description TEXT,
         condition TEXT,
-        negotiable INTEGER, -- 0 for false, 1 for true
+        negotiable INTEGER,
         location TEXT,
         paymentOption TEXT,
         sellerWhatsApp TEXT,
         sellerId TEXT,
         imageUrl TEXT,
-        timestamp INTEGER -- Unix timestamp in milliseconds
+        timestamp INTEGER
       )
     `);
     console.log('✅ Products table ensured.');
 
     // Start WebSocket Server after DB is ready
-    const wss = new WebSocketServer({ port: PORT }, () => {
+    const wss = new WebSocket.Server({ port: PORT }, () => {
       console.log(`🚀 WebSocket server running on ws://localhost:${PORT}`);
     });
 
     // --- WebSocket Clients Set ---
-    const clients = new Set(); // Use a Set to store connected clients
+    const clients = new Set();
 
     // --- Broadcast Helper ---
-    // Sends a message to all connected clients, optionally excluding the sender
     function broadcast(type, payload, excludeWs = null) {
       const message = JSON.stringify({ type, payload });
       clients.forEach((client) => {
@@ -67,7 +66,6 @@ let db;
           client.send(message);
         }
       });
-      // Also log what's being broadcasted for debugging
       console.log(`📢 Broadcasting [${type}]:`, JSON.stringify(payload).substring(0, 100) + '...');
     }
 
@@ -76,7 +74,6 @@ let db;
       clients.add(ws);
       console.log('🔌 Client connected. Total clients:', clients.size);
 
-      // Send all products to the newly connected client
       try {
         const products = await db.all('SELECT * FROM products ORDER BY timestamp DESC');
         ws.send(JSON.stringify({ type: 'ALL_PRODUCTS', payload: products }));
@@ -85,7 +82,6 @@ let db;
         console.error('❌ Error sending initial products:', err.message);
         ws.send(JSON.stringify({ type: 'ERROR', payload: 'Failed to load products.' }));
       }
-
 
       ws.on('message', async (message) => {
         let parsedMsg;
@@ -103,18 +99,13 @@ let db;
         try {
           switch (type) {
             case 'ADD_PRODUCT': {
-              // Ensure all required fields are present and valid
               const requiredFields = ['id', 'name', 'category', 'price', 'description', 'condition', 'location', 'paymentOption', 'sellerWhatsApp', 'sellerId', 'imageUrl', 'timestamp'];
               const missingFields = requiredFields.filter(field => payload[field] === undefined || payload[field] === null || payload[field] === '');
-
               if (missingFields.length > 0) {
                   ws.send(JSON.stringify({ type: 'ERROR', payload: `Missing required fields: ${missingFields.join(', ')}` }));
                   return;
               }
-
-              // Set negotiable to 0 or 1
               const negotiableValue = payload.negotiable ? 1 : 0;
-
               await db.run(`
                 INSERT INTO products (
                   id, name, category, price, description, condition, negotiable,
@@ -125,29 +116,21 @@ let db;
                 payload.condition, negotiableValue, payload.location, payload.paymentOption,
                 payload.sellerWhatsApp, payload.sellerId, payload.imageUrl, payload.timestamp
               ]);
-
               console.log('➕ Product added to DB:', payload.id);
-              // Broadcast to all other clients
               broadcast('PRODUCT_ADDED', payload, ws);
-              // Optionally send a success confirmation back to the sender
               ws.send(JSON.stringify({ type: 'ADD_PRODUCT_SUCCESS', payload: payload.id }));
               break;
             }
-
-            case 'UPDATE_PRODUCT': { // Frontend likely sends this from 'edit' form submission
+            case 'UPDATE_PRODUCT': {
               const {
                 id, name, category, price, description, condition, negotiable,
                 location, paymentOption, sellerWhatsApp, sellerId, imageUrl, timestamp
               } = payload;
-
-              // Basic validation - check if ID exists
               if (!id) {
                   ws.send(JSON.stringify({ type: 'ERROR', payload: 'Product ID is required for update.' }));
                   return;
               }
-
               const negotiableValue = negotiable ? 1 : 0;
-
               await db.run(`
                 UPDATE products SET
                   name = ?, category = ?, price = ?, description = ?, condition = ?, negotiable = ?,
@@ -159,30 +142,25 @@ let db;
                 location, paymentOption, sellerWhatsApp, sellerId,
                 imageUrl, timestamp, id
               ]);
-
               console.log('🔄 Product updated in DB:', id);
               broadcast('PRODUCT_UPDATED', payload, ws);
-              // Optionally send a success confirmation back to the sender
               ws.send(JSON.stringify({ type: 'UPDATE_PRODUCT_SUCCESS', payload: id }));
               break;
             }
-
             case 'DELETE_PRODUCT': {
-              const { id } = payload; // Assuming payload is { id: 'some-id' }
+              const { id } = payload;
               if (!id) {
                   ws.send(JSON.stringify({ type: 'ERROR', payload: 'Product ID is required for deletion.' }));
                   return;
               }
               await db.run('DELETE FROM products WHERE id = ?', [id]);
               console.log('🗑️ Product deleted from DB:', id);
-              broadcast('PRODUCT_DELETED', { id }, ws); // Send id in an object
-              // Optionally send a success confirmation back to the sender
+              broadcast('PRODUCT_DELETED', { id }, ws);
               ws.send(JSON.stringify({ type: 'DELETE_PRODUCT_SUCCESS', payload: id }));
               break;
             }
-
             case 'GET_MY_PRODUCTS': {
-              const { sellerId } = payload; // Assuming payload is { sellerId: 'some-id' }
+              const { sellerId } = payload;
               if (!sellerId) {
                   ws.send(JSON.stringify({ type: 'ERROR', payload: 'Seller ID is required to get my products.' }));
                   return;
@@ -195,21 +173,18 @@ let db;
               console.log(`📦 Sent ${myProducts.length} MY_PRODUCTS_LIST for seller: ${sellerId}`);
               break;
             }
-
-            case 'GET_ALL_PRODUCTS': { // For when the frontend explicitly asks for all products again
+            case 'GET_ALL_PRODUCTS': {
                 const allProducts = await db.all('SELECT * FROM products ORDER BY timestamp DESC');
                 ws.send(JSON.stringify({ type: 'ALL_PRODUCTS', payload: allProducts }));
                 console.log('📦 Sent ALL_PRODUCTS on request.');
                 break;
             }
-
             default:
               console.warn('⚠ Unknown message type received:', type);
               ws.send(JSON.stringify({ type: 'ERROR', payload: `Unknown message type: ${type}` }));
           }
         } catch (err) {
           console.error(`❌ Error handling type [${type}]:`, err.message);
-          // Send a generic error back to the client that sent the message
           ws.send(JSON.stringify({ type: 'ERROR', payload: `Server error processing ${type} request.` }));
         }
       });
@@ -222,6 +197,6 @@ let db;
 
   } catch (err) {
     console.error('Fatal error initializing server or database:', err.message);
-    process.exit(1); // Exit if DB connection fails
+    process.exit(1);
   }
 })();
