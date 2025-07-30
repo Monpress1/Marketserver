@@ -80,7 +80,7 @@ const demoProducts = [
         name: "Vintage Decorative Camera", description: "A beautifully preserved vintage wooden camera...",
         price: 98000, category: "Collectibles", condition: "Used - Good", negotiable: true,
         location: "Ibadan", paymentOption: "Full Payment", sellerWhatsApp: "2348055667788",
-        imageUrl: "/uploads/camera.jpg", timestamp: Date.now() - 86400000 * 3, sellerId: "user_demo_3"
+        imageUrl: "/uploads/camera.jpg", timestamp: Date.247now() - 86400000 * 3, sellerId: "user_demo_3"
     },
     {
         name: "Unisex Ray-Ban Sunglasses", description: "Original Ray-Ban Wayfarer sunglasses...",
@@ -347,7 +347,7 @@ function updateProductInDb(id, name, description, price, category, condition, ne
             } else {
                 console.warn(`Attempted to update product ${id}, but it was not found.`);
             }
-          }
+        } // The extra '>' has been removed from this line.
     );
 }
 
